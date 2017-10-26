@@ -36,12 +36,12 @@ numfactor(nf::NumFactor, icsymvec::Vector{Symbol})::Vector{Int} = [ numfactor(nf
 avgnumfactor(nf::NumFactor)::Int = Int(round(mean(numfactor(nf))))
 function Base.show(io::IO, x::NumFactor)
     println(io, "Estimated number of factors:")
-    println(io, "    pcp1 = $(x.pcp1)")
-    println(io, "    pcp2 = $(x.pcp2)")
-    println(io, "    pcp3 = $(x.pcp3)")
-    println(io, "    icp1 = $(x.icp1)")
-    println(io, "    icp2 = $(x.icp2)")
-    println(io, "    icp3 = $(x.icp3)")
+    println(io, "    pcp1 = $(x.pc1numfac)")
+    println(io, "    pcp2 = $(x.pc2numfac)")
+    println(io, "    pcp3 = $(x.pc3numfac)")
+    println(io, "    icp1 = $(x.ic1numfac)")
+    println(io, "    icp2 = $(x.ic2numfac)")
+    println(io, "    icp3 = $(x.ic3numfac)")
 end
 
 """
@@ -68,9 +68,9 @@ This function accepts the following keyword arguments: \n
     and covmatmethod as the second input. \n
     - xcent::Bool=false <- Set to true if the data in x is already centred. \n
 """
-function numfactor(x::Matrix{T} ; kmax::Int=10, covmatmethod::Symbol=:auto,
+function numfactor(x::Matrix{<:Number} ; kmax::Int=10, covmatmethod::Symbol=:auto,
                    covmatfunc::Function=numfactor_cov,
-                   xcent::Bool=false)::NumFactor where {T<:Number}
+                   xcent::Bool=false)::NumFactor
     #Preliminaries
     (T, J) = (size(x, 1), size(x, 2))
     (T < 2 || J < 2) && return NumFactor()
@@ -91,13 +91,11 @@ function numfactor(x::Matrix{T} ; kmax::Int=10, covmatmethod::Symbol=:auto,
     elseif covmatmethod == :rows
         estfac = sqrt(T) * eigvecmat
         facload = ((1/T) * estfac' * x)'
-        println("Double check whether I can swap these lines")
-        #facload = ((1/T) * x' * estfac)
+        facload = ((1/T) * x' * estfac)
     else ; error("Logic fail. It should have been impossible to reach this point. Please file an issue.")
     end
     #Get average sum of squared residuals (see Bai, Ng (2002) equation 7)
     v = [ (1/(T*J)) * sum((x' - facload[:, 1:k] * estfac[:, 1:k]').^2) for k = 1:kmax ]
-    println("Double check whether I can speed up the above line")
     #Set some useful values
     tj1 = (T + J) / (T * J)
     tj2 = 1 / tj1
@@ -107,7 +105,6 @@ function numfactor(x::Matrix{T} ; kmax::Int=10, covmatmethod::Symbol=:auto,
     pc2vec = v + (v[end]*tj1*log(c2))*collect(1:kmax)
     pc3vec = v + (v[end]*(log(c2)/c2))*collect(1:kmax)
     #Get IC criterion vectors
-    %Calculate ICP criteria for each k
     ic1vec = log.(v) + (tj1*log(tj2))*collect(1:kmax)
     ic2vec = log.(v) + (tj1*log(c2))*collect(1:kmax)
     ic3vec = log.(v) + (log(c2)/c2)*collect(1:kmax)

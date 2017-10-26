@@ -11,6 +11,8 @@ This package has an MIT license. Please see associated LICENSE.md file for more 
 """
 module CommonFactorModelStats
 
+include("est_num_factor.jl")
+
 # package code goes here
 
 end # module
