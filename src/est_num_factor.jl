@@ -48,7 +48,7 @@ end
     numfactor(x::Matrix{<:Number} ; kwargs...)::NumFactor \n
 
 Estimate the number of common factors in dataset x, using the method proposed
-in Bai, Ng (2002) Determining the Number of Factors in Approximate Factor Models. \n
+in Bai, Ng (2002) Determining the Number of Factors in Approximate Factor Models [Econometrica]. \n
 
 The rows in x should correspond to observations, and columns correspond to variables.
 See ?NumFactor for more information on the output type. \n
@@ -57,40 +57,41 @@ This function accepts the following keyword arguments: \n
     - kmax::Int=10 <- The maximum number of common factors to test up to. Note that
     the pcp criterion tend to over-estimate the number of common factors if kmax is
     set too large, so it is not advised to set this to an arbitrarily large value. \n
-    - covmatmethod::Symbol=:auto <- If x is a TxJ matrix, then set to :cols to use
+    - covmatdim::Symbol=:auto <- If x is a TxJ matrix, then set to :cols to use
     a JxJ covariance matrix, :rows for a TxT covariance matrix, or :auto to use
     whichever is smaller of J or T. From a statistical perspective, the choice
     is irrelevant, so :auto is recommended. \n
-    - covmatfunc::Function::numfactor_cov <- The function to use to calculate
-    the covariance matrix of x. Almost all users will want the default value of this input.
-    If you do use your own function, note the covariance matrix should be unscaled,
-    (see section 3, Bai, Ng (2002)) and the function must accept x as the first input,
-    and covmatmethod as the second input. \n
     - xcent::Bool=false <- Set to true if the data in x is already centred. \n
 """
-function numfactor(x::Matrix{<:Number} ; kmax::Int=10, covmatmethod::Symbol=:auto,
-                   covmatfunc::Function=numfactor_cov,
+function numfactor(x::Matrix{<:Number} ; kmax::Int=10, covmatdim::Symbol=:auto,
                    xcent::Bool=false)::NumFactor
     #Preliminaries
     (T, J) = (size(x, 1), size(x, 2))
+    if covmatdim == :auto ; min(T, J) < kmax && return NumFactor()
+    elseif covmatdim == :rows ; J < kmax && return NumFactor()
+    elseif covmatdim == :cols ; T < kmax && return NumFactor()
+    else ; error("Invalid covmatdim: $(covmatdim)")
+    end
     (T < 2 || J < 2) && return NumFactor()
     !xcent && (x = x .- mean(x, 1))
-    !any(covmatmethod .== [:auto, :rows, :cols]) && error("covmatmethod must be set to :auto, :cols, or :rows. Current value is invalid: $(covmatmethod)")
-    if covmatmethod == :auto #Choose whichever dimension is smaller for covariance matrix
-        T > J ? (covmatmethod = :cols) : (covmatmethod = :rows)
+    !any(covmatdim .== [:auto, :rows, :cols]) && error("covmatdim must be set to :auto, :cols, or :rows. Current value is invalid: $(covmatdim)")
+    if covmatdim == :auto #Choose whichever dimension is smaller for covariance matrix
+        T > J ? (covmatdim = :cols) : (covmatdim = :rows)
     end
     #Get covariance matrix
-    xcov = covmatfunc(x, covmatmethod)
+    if covmatdim == :cols ; xcov = x'*x
+    elseif covmatdim == :rows ; xcov = x*x'
+    else ; error("covmatdim must be set to :auto, :cols, or :rows. Current value is invalid: $(covmatdim)")
+    end
     #Get eigenvalues and eigenvectors for largest kmax eigenvalues
     ef = eigfact(Symmetric(xcov), size(xcov,1)-kmax+1:size(xcov,1))
     (eigvalvec, eigvecmat) = (flipdim(ef.values, 1), flipdim(ef.vectors, 2))
     #Get estimated factors and factor loadings (see Bai, Ng (2002) section 3)
-    if covmatmethod == :cols
+    if covmatdim == :cols
         facload = sqrt(J) * eigvecmat
         estfac = (1/J) * x * facload
-    elseif covmatmethod == :rows
+    elseif covmatdim == :rows
         estfac = sqrt(T) * eigvecmat
-        facload = ((1/T) * estfac' * x)'
         facload = ((1/T) * x' * estfac)
     else ; error("Logic fail. It should have been impossible to reach this point. Please file an issue.")
     end
@@ -111,9 +112,4 @@ function numfactor(x::Matrix{<:Number} ; kmax::Int=10, covmatmethod::Symbol=:aut
     #Return a NumFactor object
     (pc1nf, pc2nf, pc3nf, ic1nf, ic2nf, ic3nf) = (indmin(pc1vec), indmin(pc2vec), indmin(pc3vec), indmin(ic1vec), indmin(ic2vec), indmin(ic3vec))
     return NumFactor(pc1nf, pc2nf, pc3nf, ic1nf, ic2nf, ic3nf, pc1vec, pc2vec, pc3vec, ic1vec, ic2vec, ic3vec)
-end
-function numfactor_cov(x::Matrix{T}, covmatmethod::Symbol)::Matrix{T} where {T<:Number}
-    covmatmethod == :cols && return (x'*x)
-    covmatmethod == :rows && return (x*x')
-    error("covmatmethod must be set to :cols, or :rows. Current value is invalid: $(covmatmethod)")
 end

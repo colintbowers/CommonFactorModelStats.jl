@@ -9,4 +9,9 @@ CommonFactorModelStats.jl
 
 A module for the Julia language that implements several statistical tests from the literature on common factor models (or approximate factor models).
 
+Bai, Ng (2002) "Determining the Number of Factors in Approximate Factor Models" *Econometrica*
+
+Bai, Ng (2006) "Evaluating Latent and Observed Factors in Macroeconomics and Finance" *Journal of
+Econometrics*
+
 This package is currently being developed and is most definitely not currently in a working state. I hope to register it sometime before the end of 2017.
