@@ -11,10 +11,11 @@ Output type from the testobsfactor function. The fields of this type include: \n
     -mj:
     -r2:
 """
-struct ObsFactorTest
-    aj::Vector{Float64} #One element for each observed factor
-    mj::Vector{Float64} #One element for each observed factor
-    r2::Vector{Float64} #One element for each observed factor
+struct ObsFactorTest #aj, mj, mjpval, r2, all have one element for each observed factor
+    aj::Vector{Float64}
+    mj::Vector{Float64}
+    mjpval::Vector{Float64}
+    r2::Vector{Float64}
 end
 
 """
@@ -51,22 +52,28 @@ function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::In
     if covmethod == :cshac || covmethod == :eq4 #Bai, Ng (2006) equation 4
         nupper = Int(floor(min(sqrt(T), sqrt(N))))
         #Method 1
-        capgammahat = zeros(Float64, numfac, numfac)
+        capgammahat1 = zeros(Float64, numfac, numfac)
         for t = 1:T
             for i = 1:nupper
                 for j = 1:nupper
-                    capgammahat += facload[i, :] * facload[j, :]' * ehat[t, i] * ehat[t, j]
+                    capgammahat1 += facload[i, :] * facload[j, :]' * ehat[t, i] * ehat[t, j]
                 end
             end
         end
-        capgammahat = (1 / (nupper*T)) * capgammahat
+        capgammahat1 = (1 / (nupper*T)) * capgammahat1
         #Method 2
-        capgammahat = zeros(Float64, numfac, numfac)
+        capgammahat2 = zeros(Float64, numfac, numfac)
         for i = 1:nupper
             for j = 1:nupper
-                capgammahat += (1 / nupper) * facload[i, :] * facload[j, :]' * cgh_inner_sum(ehat, i, j)
+                capgammahat2 += (1 / nupper) * facload[i, :] * facload[j, :]' * cgh_inner_sum(ehat, i, j)
             end
         end
+        println("capgammahat1 ----------")
+        println(capgammahat1)
+        println("capgammahat2 ----------")
+        println(capgammahat2)
+        println("-----------------------")
+        capgammahat = capgammahat1
     elseif covmethod == :eq5 #Bai, Ng (2006) equation 5
         error("This variant is not currently available. Note for this equation, capgammahat depends on t, and so subsequent computations involving this estimator are more complicated and will need their own code path")
         capgammahatvec = [ zeros(Float64, numfac, numfac) for t = 1:T ]
@@ -80,11 +87,13 @@ function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::In
         sigsqhat = (1/(T*N)) * sum(ehat.^2)
         capgammaahat = (1/N) * sigsqhat * (facload' * facload) #[numfac*numfac]
     end
-
     #Loop over observed factors
     mjvec = Vector{Float64}(size(obsfac, 2))
     ajvec = Vector{Float64}(size(obsfac, 2))
-    r2vec = Vector{Float64}(size(obsfac, 2))
+    r2vec1 = Vector{Float64}(size(obsfac, 2))
+    r2vec2 = Vector{Float64}(size(obsfac, 2))
+    r2vec3 = Vector{Float64}(size(obsfac, 2))
+    r2vec4 = Vector{Float64}(size(obsfac, 2))
     for k = 1:size(obsfac, 2)
         #Get gammahat (least squares of estfac on observed factor)
         capg = obsfac[:, k]
@@ -103,19 +112,31 @@ function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::In
         mjvec[k] = maximum(abstau)
         #Get aj
         ajvec[k] = mean(abstau .> quantile(Normal(0,1), 1 - (alpha/2)))
-        #Get R2
-
+        #Get R2 method 1
+        r2vec1[k] = T*dot(gammahat, gammahat)*(1/dot(capg, capg))
+        #Get R2 method 2
+        r2vec2[k] = dot(gammahat, gammahat) / (var(capg)*((N-1)/N))
+        #Get R2 method 3
+        r2vec3[k] = var(capghat) / var(capg)
+        #Get R2 method 4
+        r2vec4[k] =  varhatcapghat / var(capg)
     end
-
-
-
-
-
+    mjvec_pval = [ 1 - (2*cdf(Normal(0,1), mj) - 1)^T for mj in mjvec ]
+    println("-----------------")
+    println(r2vec1)
+    println("-----------------")
+    println(r2vec2)
+    println("-----------------")
+    println(r2vec3)
+    println("-----------------")
+    println(r2vec4)
+    println("-----------------")
+    r2vec = r2vec1
+    return ObsFactorTest(ajvec, mjvec, mjvec_pval, r2vec)
 end
 cgh_inner_sum(ehat::Matrix{Float64}, i::Int, j::Int)::Float64 = (1 / size(ehat, 1)) * dot(view(ehat, :, i), view(ehat, :, j))
-
 function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number} ; kmax::Int=10,
-                       xcent::Bool=false)::NumFactor
+                       xcent::Bool=false)::ObsFactorTest
     !xcent && (x = x .- mean(x, 1))
     numfac = numfactor(x, kmax=kmax, xcent=true)
     return testobsfactor(x, obsfac, avgnumfactor(numfac), xcent=true)

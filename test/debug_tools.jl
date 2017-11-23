@@ -46,6 +46,12 @@ function sim_common_factor_model(numobs::Int, numfac::Int, numvar::Int, loadmu::
     x = facmat * loadmat + emat
     return (x, facmat, loadmat, emat)
 end
+function sim_obs_factor(x::Matrix{Float64}, mu1::Number, std1::Number)
+    paramvec = randn(size(x, 2))
+    xexact = x * paramvec
+    xobs = mu1 + (std1*randn(size(x, 1))) .* xexact
+    return (xexact, xobs)
+end
 
 
 function test_num_factor(numtest::Int, numobs::Int, numvar::Int, loadmu::Number, errorstd::Number)
@@ -54,6 +60,18 @@ function test_num_factor(numtest::Int, numobs::Int, numvar::Int, loadmu::Number,
         (x, f, l, e) = sim_common_factor_model(numobs, numfac, numvar, loadmu, errorstd)
         nf = CommonFactorModelStats.numfactor(x, covmatmethod=:auto)
         println("($(t)) True num fac = $(numfac). Estimates = $(CommonFactorModelStats.numfactor(nf)). Average estimate = $(CommonFactorModelStats.avgnumfactor(nf))")
+    end
+end
+
+function test_obs_factor(numtest::Int, numobs::Int, numvar::Int, loadmu::Number, errorstd::Number,
+                        obsbias::Number, obsstd::Float64, covmethod::Symbol=:eq4, alpha::Float64=0.05)
+    for t = 1:numtest
+        numfac = rand(1:8)
+        (x, f, l, e) = sim_common_factor_model(numobs, numfac, numvar, loadmu, errorstd)
+        (xexact, xobs) = sim_obs_factor(x, obsbias, obsstd)
+        xobsmat = reshape(xobs, length(xobs), 1)
+        oft = CommonFactorModelStats.testobsfactor(x, xobsmat, numfac, xcent=false, covmethod=covmethod, alpha=alpha)
+        println("($(t)) num fac = $(numfac). aj = $(oft.aj[1]), mj = $(oft.mj[1]), mjpval = $(oft.mjpval[1]), r2 = $(oft.r2[1])")
     end
 end
 
@@ -69,8 +87,17 @@ numobs = 100;
 numvar = 200;
 loadmu = 0;
 errorstd = 2;
-
-
 test_num_factor(numtest, numobs, numvar, loadmu, errorstd)
 
+
+numtest = 10;
+numobs = 100;
+numvar = 200;
+loadmu = 0;
+errorstd = 2;
+obsbias = 0.0;
+obsstd = 0.0;
+covmethod = :eq4;
+alpha = 0.05;
+test_obs_factor(numtest, numobs, numvar, loadmu, errorstd, obsbias, obsstd, covmethod, alpha)
 #blah
