@@ -14,4 +14,8 @@ Bai, Ng (2002) "Determining the Number of Factors in Approximate Factor Models" 
 Bai, Ng (2006) "Evaluating Latent and Observed Factors in Macroeconomics and Finance" *Journal of
 Econometrics*
 
-This package is currently being developed and is most definitely not currently in a working state. I hope to register it sometime before the end of 2017.
+This package is in a first draft state.
+
+For determining the number of factors, use `?numfactor` at the REPL to see the function documentation, and `?NumFactor` to see documentation on the ouput type of the function.
+
+For evaluating observed factors use `testobsfactor` at the REPL to see the function documenation, and `?ObsFactorTest` to see documentation on the output type of the function.

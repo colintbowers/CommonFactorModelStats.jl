@@ -8,8 +8,16 @@ Output type from the testobsfactor function. The fields of this type include: \n
         the corresponding observed factor is close to spanning the latent factor
         space. aj --> 1 implies the corresponding observed factor is unlikely
         to span the latent factor space.
-    -mj:
-    -r2:
+    -mj: Test statistic defined in Bai, Ng (2006) equation x. This test statistic
+        is used to test the null hypothesis that the observed factor is an exact
+        linear combination of the latent factor space.
+    -mjpval: The p-value associated with the mj statistic.
+    -r2: A heuristic metric of how well the observed factor fits the latent factor
+        space. r2 --> 0 implies a very poor fit, r2 --> 1 implies a very good fit.
+        Note that, heuristically, the aj and mj statistics tend to be very sensitive,
+        ie observed factors that deviate from the latent factor space by a small
+        amount of random noise can have aj very close to 1 and mjpval very close to 0.
+        In contrast the r2 measure tends to be more stable.
 """
 struct ObsFactorTest #aj, mj, mjpval, r2, all have one element for each observed factor
     aj::Vector{Float64}
