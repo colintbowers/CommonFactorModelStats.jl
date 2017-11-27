@@ -35,16 +35,29 @@ factor space that is estimated from input dataset x. The testing methodology is 
 Bai, Ng (2006) Evaluating Latent and Observed Factors in Macroeconomics and Finance [Journal of
 Econometrics]. \n
 
+The number of factors is estimated using Bai, Ng (2002), or else the user can specify the number
+of factors using a third argument. \n
+
+Keyword arguments are as follows: \n
+    - xcent::Bool=false <-- Set to true if x is already centred \n
+    - covmethod::Symbol=:cshac <-- Choose the method for computing the asymptotic variance, corresponding
+        to equations 4, 5, and 5 in the original paper. Use either (:eq4, :cshac) for equation 4,
+        either (:eq5, :het) for equation 5, or either (:eq6, :iid) for equation 6. \n
+    - alpha::Float64=0.05 <-- The significance level to use when computing statistics \n
+    - standardize::Bool=true <-- Set to true to standardize x and obsfac to have unit variance \n
+
 See ?ObsFactorTest for more information on the output type, and the meaning of the various
 statistics it contains. \n
 """
 function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::Int ;
-                       xcent::Bool=false, covmethod::Symbol=:cshac, alpha::Float64=0.05)::ObsFactorTest
+                       xcent::Bool=false, covmethod::Symbol=:cshac, alpha::Float64=0.05,
+                       standardize::Bool=true)::ObsFactorTest
     #Preliminaries
     (T, N) = (size(x, 1), size(x, 2))
     N < numfac && return ObsFactorTest()
     (T < 2 || N < 2) && return ObsFactorTest()
     !xcent && (x = x .- mean(x, 1))
+    standardize && (x = x .* (1 ./ std(x, 1)))
     #Get covariance matrix
     xcov = (1 / (T*N)) * x * x'
     #Get eigenvalues and eigenvectors for largest numfac eigenvalues, and then get factor loadings and estimated factors
@@ -56,9 +69,6 @@ function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::In
     #Get eigenvalue inverse matrix
     invcapvtilde = diagm(1 ./ eigvalvec) #[numfac*numfac]
     #Get gamma hat
-
-    println("Correlation between obsfac and factor space: $(cor(vec(estfac), vec(obsfac)))")
-
     if covmethod == :cshac || covmethod == :eq4 #Bai, Ng (2006) equation 4
         nupper = Int(floor(min(sqrt(T), sqrt(N))))
         capgammahat = zeros(Float64, numfac, numfac)
@@ -67,7 +77,7 @@ function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::In
                 capgammahat += (1 / nupper) * facload[i, :] * facload[j, :]' * cgh_inner_sum(ehat, i, j)
             end
         end
-    elseif covmethod == :eq5 #Bai, Ng (2006) equation 5
+    elseif covmethod == :het || covmethod == :eq5 #Bai, Ng (2006) equation 5
         capgammahatvec = [ zeros(Float64, numfac, numfac) for t = 1:T ]
         for t = 1:T
             for i =  1:N
@@ -75,7 +85,7 @@ function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::In
             end
             capgammahatvec[t] *= (1/N)
         end
-    elseif covmethod == :eq6 #Bai, Ng (2006) equation 6
+    elseif covmethod == :iid || covmethod == :eq6 #Bai, Ng (2006) equation 6
         sigsqhat = (1/(T*N)) * sum(ehat.^2)
         capgammahat = (1/N) * sigsqhat * (facload' * facload) #[numfac*numfac]
     end
@@ -86,15 +96,15 @@ function testobsfactor(x::Matrix{<:Number}, obsfac::Matrix{<:Number}, numfac::In
     for k = 1:size(obsfac, 2)
         #Get gammahat (least squares of estfac on observed factor)
         capg = obsfac[:, k] - mean(view(obsfac, :, k))
-        println("Correlation between cap and factor space = $(cor(capg, vec(estfac)))")
+        standardize && (capg = (1 / std(capg)) * capg)
         gammahat = estfac \ capg
         capghat = estfac * gammahat
         #Get estimated variance of least squares estfac estimate of observed factor (capg)
-        if covmethod == :eq5 ; varhatcapghatvec = [ (1/N) * gammahat' * invcapvtilde * capgammahat * invcapvtilde *  gammahat for capgammahat in capgammahatvec ]
+        if any(covmethod .== [:eq5, :het]) ; varhatcapghatvec = [ (1/N) * gammahat' * invcapvtilde * capgammahat * invcapvtilde *  gammahat for capgammahat in capgammahatvec ]
         else ; varhatcapghat = (1/N) * gammahat' * invcapvtilde * capgammahat * invcapvtilde *  gammahat
         end
         #Get tau statistic
-        if covmethod == :eq5 ; tau = (capghat - capg) ./ sqrt.(varhatcapghatvec)
+        if any(covmethod .== [:eq5, :het]) ; tau = (capghat - capg) ./ sqrt.(varhatcapghatvec)
         else ; tau = (capghat - capg) / sqrt(varhatcapghat)
         end
         abstau = abs.(tau)

@@ -76,6 +76,43 @@ function test_obs_factor(numtest::Int, numobs::Int, numvar::Int, loadmu::Number,
     end
 end
 
+
+function test_obs_factor_bai_ng(numtest::Int, numobs::Int, numvar::Int, covmethod::Symbol, alpha::Float64)
+    ajmat = Array{Float64}(numtest, 7)
+    mjmat = Array{Float64}(numtest, 7)
+    mjpvalmat = Array{Float64}(numtest, 7)
+    mjrejmat = Array{Float64}(numtest, 7)
+    r2mat = Array{Float64}(numtest, 7)
+    deltamat = [1.0 1.0 0.0 ; 1.0 0.0 0.0 ; 1.0 1.0 0.2 ; 1.0 0.0 0.2 ; 1.0 1.0 2.0 ; 1.0 0.0 2.0 ; 0.0 0.0 1.0]
+    for m = 1:numtest
+        mod(m, 50) == 0 && println("Up to $(m)")
+        f = randn(numobs, 2)
+        l = randn(2, numvar)
+        resid = randn(numobs, numvar)
+        x = f*l + resid
+        x = std_x_mat(x)
+        for d = 1:7
+            gtemp = f*deltamat[d, 1:2]
+            g = gtemp + deltamat[d, 3] * randn(length(gtemp))
+            g = reshape(g, length(g), 1)
+            tof = CommonFactorModelStats.testobsfactor(x, g, 2, covmethod=covmethod, alpha=0.05)
+            ajmat[m, d] = tof.aj[1]
+            mjmat[m, d] = tof.mj[1]
+            mjpvalmat[m, d] = tof.mjpval[1]
+            tof.mjpval[1] < 0.05 ? (mjrejmat[m, d] = 1.0) : (mjrejmat[m, d] = 0.0)
+            r2mat[m, d] = tof.r2[1]
+        end
+    end
+    println("Test result with numtest=$(numtest), numobs=$(numobs), and numvar=$(numvar)")
+    println("Avg aj = $(mean(ajmat, 1))")
+    println("Avg mj rej = $(mean(mjrejmat, 1))")
+    println("Avg r2 = $(mean(r2mat, 1))")
+    println("----------------------------")
+    nothing
+end
+std_x_vec(x::Vector{Float64})::Vector{Float64} = (1 / std(x)) * (x - mean(x))
+std_x_mat(x::Matrix{Float64})::Matrix{Float64} = hcat([ std_x_vec(x[:, k]) for k = 1:size(x, 2) ]...)
+
 # numobs = 200
 # numfac = 3
 # numvar = 100
@@ -91,15 +128,23 @@ end
 # test_num_factor(numtest, numobs, numvar, loadmu, errorstd)
 
 
-numtest = 4;
-numobs = 1000;
-numvar = 1000;
-loadmu = 0;
-errorstd = 1.0;
-obsbias = 0.0;
-obsstd = 0.05;
-#obsstd = 0.0;
-covmethod = :eq4;
-alpha = 0.05;
-test_obs_factor(numtest, numobs, numvar, loadmu, errorstd, obsbias, obsstd, covmethod, alpha)
+# numtest = 4;
+# numobs = 1000;
+# numvar = 1000;
+# loadmu = 0;
+# errorstd = 1.0;
+# obsbias = 0.0;
+# obsstd = 0.05;
+# #obsstd = 0.0;
+# covmethod = :eq4;
+# alpha = 0.05;
+# test_obs_factor(numtest, numobs, numvar, loadmu, errorstd, obsbias, obsstd, covmethod, alpha)
 #blah
+
+
+numtest = 1000;
+numobs = 50;
+numvar = 50;
+covmethod = :eq6;
+alpha = 0.05;
+test_obs_factor_bai_ng(numtest, numobs, numvar, covmethod, alpha);

@@ -62,9 +62,10 @@ This function accepts the following keyword arguments: \n
     whichever is smaller of J or T. From a statistical perspective, the choice
     is irrelevant, so :auto is recommended. \n
     - xcent::Bool=false <- Set to true if the data in x is already centred. \n
+    - standardize::Bool=true <-- Set to true to standardize x to have unit variance \n
 """
 function numfactor(x::Matrix{<:Number} ; kmax::Int=10, covmatdim::Symbol=:auto,
-                   xcent::Bool=false)::NumFactor
+                   xcent::Bool=false, standardize::Bool=false)::NumFactor
     #Preliminaries
     (T, J) = (size(x, 1), size(x, 2))
     if covmatdim == :auto ; min(T, J) < kmax && return NumFactor()
@@ -74,6 +75,7 @@ function numfactor(x::Matrix{<:Number} ; kmax::Int=10, covmatdim::Symbol=:auto,
     end
     (T < 2 || J < 2) && return NumFactor()
     !xcent && (x = x .- mean(x, 1))
+    standardize && (x = x .* (1 ./ std(x, 1)))
     !any(covmatdim .== [:auto, :rows, :cols]) && error("covmatdim must be set to :auto, :cols, or :rows. Current value is invalid: $(covmatdim)")
     if covmatdim == :auto #Choose whichever dimension is smaller for covariance matrix
         T > J ? (covmatdim = :cols) : (covmatdim = :rows)
